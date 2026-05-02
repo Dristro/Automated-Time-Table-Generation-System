@@ -262,6 +262,20 @@ class TimetableDataParser:
                     return
 
                 for row_num, row in enumerate(reader, start=2):
+                    # Auto-create referenced entities
+                    if "professor" in row and row["professor"] and row["professor"] not in self.professor_names:
+                        self._add_professor_from_dict({"name": row["professor"]}, source="CSV", row_num=row_num)
+
+                    if "room" in row and row["room"] and row["room"] not in self.room_names:
+                        self._add_room_from_dict({"name": row["room"]}, source="CSV", row_num=row_num)
+
+                    if "student_group" in row and row["student_group"] and row["student_group"] not in self.student_group_names:
+                        self._add_student_group_from_dict(
+                            {"name": row["student_group"], "size": 80, "level": "batch"},
+                            source="CSV", row_num=row_num
+                        )
+
+                    # Now add the course
                     self._add_course_from_dict(row, source="CSV", row_num=row_num)
         except Exception as e:
             self.errors.append(f"ERROR: Failed to parse CSV: {e}")
@@ -276,21 +290,53 @@ class TimetableDataParser:
             return
 
         if isinstance(data, list):
+            # Flat array: auto-create entities, then add courses
             for row_num, item in enumerate(data, start=1):
+                # Auto-create referenced entities
+                if "professor" in item and item["professor"] and item["professor"] not in self.professor_names:
+                    self._add_professor_from_dict({"name": item["professor"]}, source="JSON", row_num=row_num)
+
+                if "room" in item and item["room"] and item["room"] not in self.room_names:
+                    self._add_room_from_dict({"name": item["room"]}, source="JSON", row_num=row_num)
+
+                if "student_group" in item and item["student_group"] and item["student_group"] not in self.student_group_names:
+                    self._add_student_group_from_dict(
+                        {"name": item["student_group"], "size": 80, "level": "batch"},
+                        source="JSON", row_num=row_num
+                    )
+
                 self._add_course_from_dict(item, source="JSON", row_num=row_num)
+
         elif isinstance(data, dict):
-            if "courses" in data:
-                for row_num, course in enumerate(data["courses"], start=1):
-                    self._add_course_from_dict(course, source="JSON", row_num=row_num)
+            # Pre-normalized: parse in order (professors, rooms, groups, then courses)
             if "professors" in data:
                 for prof in data["professors"]:
-                    self._add_professor_from_dict(prof)
+                    self._add_professor_from_dict(prof, source="JSON")
+
             if "rooms" in data:
                 for room in data["rooms"]:
-                    self._add_room_from_dict(room)
+                    self._add_room_from_dict(room, source="JSON")
+
             if "student_groups" in data:
                 for group in data["student_groups"]:
-                    self._add_student_group_from_dict(group)
+                    self._add_student_group_from_dict(group, source="JSON")
+
+            if "courses" in data:
+                for row_num, course in enumerate(data["courses"], start=1):
+                    # Auto-create missing entities
+                    if "professor" in course and course["professor"] and course["professor"] not in self.professor_names:
+                        self._add_professor_from_dict({"name": course["professor"]}, source="JSON", row_num=row_num)
+
+                    if "room" in course and course["room"] and course["room"] not in self.room_names:
+                        self._add_room_from_dict({"name": course["room"]}, source="JSON", row_num=row_num)
+
+                    if "student_group" in course and course["student_group"] and course["student_group"] not in self.student_group_names:
+                        self._add_student_group_from_dict(
+                            {"name": course["student_group"], "size": 80, "level": "batch"},
+                            source="JSON", row_num=row_num
+                        )
+
+                    self._add_course_from_dict(course, source="JSON", row_num=row_num)
         else:
             self.errors.append("ERROR: JSON must be an object or array")
 
